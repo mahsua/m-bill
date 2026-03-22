@@ -8,6 +8,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logo from './assets/icon.png';
+import Qr from './assets/qr.png';
 // const gpayLogo = "data:image/jpg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
 import { 
@@ -348,9 +349,9 @@ export default function App() {
     //   console.error("G_Pay QR code could not be added to PDF", e);
     // }
     try {
-      doc.addImage(logo, 'PNG', 20, finalY - 5, 40, 40);
+      doc.addImage(Qr, 'PNG', 20, finalY - 5, 40, 40);
     } catch (e) {
-      console.error("Logo could not be added to PDF", e);
+      console.error("Qr could not be added to PDF", e);
     }
 
     doc.setFontSize(10);
