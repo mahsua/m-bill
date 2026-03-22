@@ -1,0 +1,7 @@
+{
+  "name": "M Bill",
+  "description": "Smart QR-based billing software with real-time discount tracking, PDF generation, and SMS sharing.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
