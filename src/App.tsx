@@ -8,7 +8,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logo from './assets/icon.png';
-import gpayLogo from './assets/G_Pay.jpg';
+import gpayLogo from './assets/G_Pay.jpeg';
 
 import { 
   QrCode, 
@@ -343,7 +343,7 @@ export default function App() {
     
     // Add G_Pay QR Code
     try {
-      doc.addImage(gpayLogo, 'jpg', 20, finalY - 5, 40, 40);
+      doc.addImage(gpayLogo, 'jpeg', 20, finalY - 5, 40, 40);
     } catch (e) {
       console.error("G_Pay QR code could not be added to PDF", e);
     }
