@@ -8,7 +8,9 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logo from './assets/icon.png';
-import gpayLogo from './assets/G_Pay.png';
+// Placeholder for G_Pay.png since it's missing. User should replace this with the actual image.
+const gpayLogo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+
 import { 
   QrCode, 
   Plus, 
