@@ -8,7 +8,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logo from './assets/icon.png';
-const gpayLogo = "data:image/jpg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+// const gpayLogo = "data:image/jpg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
 import { 
   QrCode, 
@@ -342,10 +342,15 @@ export default function App() {
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     
     // Add G_Pay QR Code
+    // try {
+    //   doc.addImage(gpayLogo, 'jpg', 20, finalY - 5, 40, 40);
+    // } catch (e) {
+    //   console.error("G_Pay QR code could not be added to PDF", e);
+    // }
     try {
-      doc.addImage(gpayLogo, 'jpg', 20, finalY - 5, 40, 40);
+      doc.addImage(logo, 'PNG', 10, 10, 25, 25);
     } catch (e) {
-      console.error("G_Pay QR code could not be added to PDF", e);
+      console.error("Logo could not be added to PDF", e);
     }
 
     doc.setFontSize(10);
