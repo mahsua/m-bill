@@ -9,6 +9,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logo from './assets/icon.png';
 import gpayLogo from './assets/G_Pay.png';
+
 import { 
   QrCode, 
   Plus, 
