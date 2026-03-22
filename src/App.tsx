@@ -348,7 +348,7 @@ export default function App() {
     //   console.error("G_Pay QR code could not be added to PDF", e);
     // }
     try {
-      doc.addImage(logo, 'PNG', 10, 10, 25, 25);
+      doc.addImage(logo, 'PNG', 20, finalY - 5, 40, 40);
     } catch (e) {
       console.error("Logo could not be added to PDF", e);
     }
