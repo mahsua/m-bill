@@ -117,7 +117,10 @@ export default function App() {
     }
     setIsScannerOpen(false);
   };
-
+  
+  const CreateQr = () => {
+    window.open("https://apps.mahsua.com/qr-code-generator/index.html", "_blank", "noopener,noreferrer");
+  };
   const handleScan = (data: string) => {
     setLastScanned(data);
     try {
@@ -500,22 +503,30 @@ export default function App() {
                   <h2 className="font-semibold text-lg flex items-center gap-2">
                     <Camera className="w-5 h-5 text-accent-pink" />
                     QR Scanner
-                  </h2>
+                  </h2>                  
                   <p className="text-xs text-fg-muted mt-1">Format: S.No, Product Name, Qty, Price, Discount%, Amount</p>
                 </div>
-                
                 <div className="p-4 space-y-3">
+                <div class="flex gap-4"> 
                   <button 
                     onClick={startScanner}
-                    className="btn-primary w-full py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2"
+                    className="btn-primary flex-1 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2"
                   >
                     <Camera className="w-5 h-5" />
                     <span>Start Camera</span>
                   </button>
                   
+                  <button 
+                    onClick={CreateQr }
+                    className="btn-primary flex-1 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2"
+                  >
+                    <QrCode className="w-5 h-5" />
+                    <span>Create QR</span>
+                  </button>
+                </div>
                   {/* Manual Entry */}
                   <details className="group">
-                    <summary className="cursor-pointer text-sm text-fg-muted hover:text-white transition-colors flex items-center gap-2 py-2">
+                    <summary className="cursor-pointer text-sm text-fg-muted flex items-center gap-2 py-2">
                       <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
                       Manual Product Entry
                     </summary>
