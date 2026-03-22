@@ -515,7 +515,7 @@ export default function App() {
                     <Camera className="w-5 h-5" />
                     <span>Start Camera</span>
                   </button>
-                  
+
                   <button 
                     onClick={CreateQr }
                     className="btn-primary flex-1 py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2"
