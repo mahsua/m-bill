@@ -27,19 +27,20 @@
       background-size: 40px 40px;
     }
     .card {
-      background: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(148, 163, 184, 0.25);
       transition: all 0.2s ease;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
     }
-    .card:hover {
-      background: rgba(255, 255, 255, 1);
-      border-color: rgba(37, 99, 235, 0.4);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    .btn-primary { 
+      background: linear-gradient(135deg, #2563eb, #1d4ed8); 
+      transition: all 0.2s;
     }
-    .btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); transition: all 0.2s; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(37,99,235,0.25); }
+    .btn-primary:hover { 
+      transform: translateY(-2px); 
+      box-shadow: 0 8px 18px rgba(37,99,235,0.25);
+    }
     .btn-checkout { background: linear-gradient(135deg, #16a34a, #15803d); }
     .btn-checkout:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(22,163,74,0.25); }
     .btn-pink { background: linear-gradient(135deg, #db2777, #be185d); }
@@ -63,7 +64,73 @@
 
   <script>
     // ------------------------------
-    //  STATE & IMAGE LOADING
+    //  USER CREDENTIALS
+    // ------------------------------
+    const validUsers = [
+      { email: "mahsuadigital@gmail.com", password: "Shivam228@" },
+      { email: "proshivamkushwaha@gmail.com", password: "Shivam900@" }
+    ];
+    
+    let isLoggedIn = false;
+    let currentUser = null;
+    
+    // Check if user is already logged in (session storage)
+    function checkLoginStatus() {
+      const savedLogin = sessionStorage.getItem('mBillLoggedIn');
+      const savedUser = sessionStorage.getItem('mBillUser');
+      if (savedLogin === 'true' && savedUser) {
+        isLoggedIn = true;
+        currentUser = savedUser;
+        return true;
+      }
+      return false;
+    }
+    
+    function showToast(title, message, type = 'success') {
+      const existing = document.querySelector('.toast-message');
+      if(existing) existing.remove();
+      const toastDiv = document.createElement('div');
+      toastDiv.className = 'toast-message flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl pointer-events-auto bg-slate-800/90 backdrop-blur-sm border border-slate-700';
+      const iconColor = type === 'success' ? '#16a34a' : (type === 'warning' ? '#db2777' : '#ef4444');
+      const iconName = type === 'success' ? 'check-circle-2' : (type === 'warning' ? 'alert-circle' : 'alert-circle');
+      toastDiv.innerHTML = `
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:${iconColor}20">
+          <i data-lucide="${iconName}" style="width:20px;height:20px;color:${iconColor}"></i>
+        </div>
+        <div><p class="font-semibold text-white text-sm">${title}</p><p class="text-xs text-slate-300">${message}</p></div>
+      `;
+      document.body.appendChild(toastDiv);
+      lucide.createIcons({ icons: { [iconName]: true } });
+      setTimeout(() => { if(toastDiv) toastDiv.remove(); }, 3000);
+    }
+    
+    function login(email, password) {
+      const user = validUsers.find(u => u.email === email && u.password === password);
+      if (user) {
+        isLoggedIn = true;
+        currentUser = email;
+        sessionStorage.setItem('mBillLoggedIn', 'true');
+        sessionStorage.setItem('mBillUser', email);
+        showToast("Welcome!", `Logged in as ${email}`, "success");
+        renderApp();
+        return true;
+      } else {
+        showToast("Login Failed", "Invalid email or password", "error");
+        return false;
+      }
+    }
+    
+    function logout() {
+      isLoggedIn = false;
+      currentUser = null;
+      sessionStorage.removeItem('mBillLoggedIn');
+      sessionStorage.removeItem('mBillUser');
+      renderApp();
+      showToast("Logged Out", "You have been logged out successfully", "success");
+    }
+    
+    // ------------------------------
+    //  COMPLETE BILLING APP STATE
     // ------------------------------
     let products = [];
     let customerName = "";
@@ -78,38 +145,17 @@
     let scannerErrorMsg = null;
     let toastTimeout = null;
     
-    // Store image base64 for PDF
     let mahsuaLogoBase64 = null;
     let paymentQrBase64 = null;
     
-    // DOM elements
     let productListContainer, subtotalEl, totalDiscountEl, youSaveEl, grandTotalEl;
     let customerNameInput, customerPhoneInput, paymentSelect, invoiceInput;
     let manualName, manualQty, manualPrice, manualAmount;
     let quickPasteInput;
-    let scannerModal, scannerErrorDiv;
+    let scannerModal;
     let itemCountSpan;
     
     function generateId() { return Math.random().toString(36).substr(2, 9); }
-    
-    function showToast(title, message, type = 'success') {
-      const existing = document.querySelector('.toast-message');
-      if(existing) existing.remove();
-      if(toastTimeout) clearTimeout(toastTimeout);
-      const toastDiv = document.createElement('div');
-      toastDiv.className = 'toast-message flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl pointer-events-auto bg-slate-800/90 backdrop-blur-sm border border-slate-700';
-      const iconColor = type === 'success' ? '#16a34a' : (type === 'warning' ? '#db2777' : '#ef4444');
-      const iconName = type === 'success' ? 'check-circle-2' : (type === 'warning' ? 'alert-circle' : 'alert-circle');
-      toastDiv.innerHTML = `
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:${iconColor}20">
-          <i data-lucide="${iconName}" style="width:20px;height:20px;color:${iconColor}"></i>
-        </div>
-        <div><p class="font-semibold text-white text-sm">${title}</p><p class="text-xs text-slate-300">${message}</p></div>
-      `;
-      document.body.appendChild(toastDiv);
-      lucide.createIcons({ icons: { [iconName]: true } });
-      toastTimeout = setTimeout(() => { if(toastDiv) toastDiv.remove(); }, 3000);
-    }
     
     function updateUI() {
       if(!productListContainer) return;
@@ -319,26 +365,15 @@
       showToast("Cleared", "All items removed", "warning");
     }
     
-    // ------------------------------
-    //  PDF GENERATION WITH UPDATED COLUMNS
-    // ------------------------------
     function generatePDF(action) {
       if(products.length === 0) { showToast("Empty", "Add products first", "error"); return; }
-      if(!mahsuaLogoBase64 || !paymentQrBase64) {
-        showToast("Images not ready", "Please wait for images to load", "warning");
-        return;
-      }
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       const custName = customerName.trim() || "Customer";
       const fileName = `${custName.replace(/\s+/g, '_')}_bill.pdf`;
       
-      // --- Add business logo (mahsua.png) at top left ---
-      try {
-        doc.addImage(mahsuaLogoBase64, 'PNG', 10, 8, 25, 25);
-      } catch(e) { console.warn("Logo not added", e); }
+      try { if(mahsuaLogoBase64) doc.addImage(mahsuaLogoBase64, 'PNG', 10, 8, 25, 25); } catch(e) {}
       
-      // Header text (centered)
       doc.setFontSize(24);
       doc.setFont("helvetica", "bold");
       doc.text("MAHSUA DIGITAL", 105, 20, { align: "center" });
@@ -347,19 +382,13 @@
       doc.text("MP Online | Printing | Question Paper | Photo Studio | Typing", 105, 28, { align: "center" });
       doc.text("Mahsua 517 Mahsua Road Raipur Karchuliyan, Madhya Pradesh 486114", 105, 35, { align: "center" });
       
-      // Contact Information Line
       doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
       doc.text("+91 9752107808  +91 9977666219  |  mahsuadigital@gmail.com  |  www.mahsua.com", 105, 42, { align: "center" });
-      
-      // Header Divider Line
       doc.setDrawColor(200, 200, 200);
       doc.line(20, 46, 190, 46);
-      
-      // Reset text color
       doc.setTextColor(0, 0, 0);
       
-      // Customer & Invoice details
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text("BILL TO:", 20, 55);
@@ -374,18 +403,9 @@
       doc.text(`Date: ${currentTime.toLocaleDateString()}`, 140, 72);
       doc.text(`Time: ${currentTime.toLocaleTimeString()}`, 140, 77);
       
-      // Product table with new column order: S.No, Product Name, Price, Disc %, Disc Price, Qty, Amount
       const tableData = products.map(p => {
         const discPrice = p.price * (1 - p.discountPercent / 100);
-        return [
-          p.serialNumber,
-          p.name,
-          `Rs. ${p.price.toFixed(2)}`,
-          `${p.discountPercent}%`,
-          `Rs. ${discPrice.toFixed(2)}`,
-          p.quantity,
-          `Rs. ${p.amount.toFixed(2)}`
-        ];
+        return [p.serialNumber, p.name, `Rs. ${p.price.toFixed(2)}`, `${p.discountPercent}%`, `Rs. ${discPrice.toFixed(2)}`, p.quantity, `Rs. ${p.amount.toFixed(2)}`];
       });
       
       doc.autoTable({
@@ -394,24 +414,12 @@
         body: tableData,
         theme: 'grid',
         headStyles: { fillColor: [30, 41, 59] },
-        columnStyles: { 
-          0: { halign: 'center' },
-          2: { halign: 'right' },
-          3: { halign: 'center' },
-          4: { halign: 'right' },
-          5: { halign: 'center' },
-          6: { halign: 'right' }
-        },
         styles: { fontSize: 9 }
       });
       const finalY = doc.lastAutoTable.finalY + 10;
       
-      // Add payment QR code on the left side of subtotal section
-      try {
-        doc.addImage(paymentQrBase64, 'PNG', 20, finalY - 5, 40, 40);
-      } catch(e) { console.warn("QR code not added", e); }
+      try { if(paymentQrBase64) doc.addImage(paymentQrBase64, 'PNG', 20, finalY - 5, 40, 40); } catch(e) {}
       
-      // Subtotal, discount, grand total
       const subtotal = products.reduce((s,p) => s + (p.price * p.quantity), 0);
       const grandTotal = products.reduce((s,p) => s + p.amount, 0);
       const totalDiscount = subtotal - grandTotal;
@@ -431,7 +439,6 @@
       doc.setFontSize(9);
       doc.text("Signature........................", 150, finalY+45);
       
-      // Acknowledgement slip
       const slipY = 230;
       doc.setDrawColor(150);
       doc.line(10, slipY, 200, slipY);
@@ -508,9 +515,6 @@
       manualName.value = ''; manualQty.value = '1'; manualPrice.value = ''; manualAmount.value = '';
     }
     
-    // ------------------------------
-    //  PRELOAD IMAGES FOR PDF
-    // ------------------------------
     async function loadImageAsBase64(url) {
       try {
         const response = await fetch(url);
@@ -521,35 +525,27 @@
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-      } catch(e) {
-        console.warn(`Failed to load ${url}`, e);
-        return null;
-      }
-    }
-    
-    async function preloadImages() {
-      const [logo, qr] = await Promise.all([
-        loadImageAsBase64('assets/mahsua.png'),
-        loadImageAsBase64('assets/qr.png')
-      ]);
-      mahsuaLogoBase64 = logo;
-      paymentQrBase64 = qr;
-      if(!logo || !qr) showToast("Image warning", "Some images not loaded, PDF may be affected", "warning");
+      } catch(e) { return null; }
     }
     
     // ------------------------------
-    //  RENDER APP
+    //  RENDER BILLING APP
     // ------------------------------
-    function renderApp() {
+    function renderBillingApp() {
       const root = document.getElementById('app-root');
       root.innerHTML = `
         <header class="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-slate-200/60">
           <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
             <div class="flex items-center gap-3">
-              <img src="assets/mahsua.png" alt="M Bill Logo" class="w-10 h-10 rounded-xl object-contain shadow-md">
+              <img src="assets/mahsua.png" alt="M Bill Logo" class="w-10 h-10 rounded-xl object-contain shadow-md" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%232563eb%22 stroke-width=%222%22%3E%3Crect x=%223%22 y=%223%22 width=%2218%22 height=%2218%22 rx=%222%22%3E%3C/rect%3E%3C/svg%3E'">
               <div><h1 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-blue-600">M Bill</h1><p class="text-xs text-slate-500">Smart Billing with Discount Tracker</p></div>
             </div>
-            <div class="flex gap-2 items-center"><div class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm font-mono" id="liveTime"></div><div class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm"><span class="text-slate-500">Items:</span><span id="itemCount" class="font-semibold ml-1">0</span></div><button id="clearAllBtn" class="p-2 rounded-lg bg-slate-100 hover:text-pink-600 transition" title="Clear All"><i data-lucide="trash-2" style="width:20px;height:20px"></i></button></div>
+            <div class="flex gap-2 items-center">
+              <div class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm font-mono" id="liveTime"></div>
+              <div class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm"><span class="text-slate-500">Items:</span><span id="itemCount" class="font-semibold ml-1">0</span></div>
+              <button id="clearAllBtn" class="p-2 rounded-lg bg-slate-100 hover:text-pink-600 transition" title="Clear All"><i data-lucide="trash-2" style="width:20px;height:20px"></i></button>
+              <button id="logoutBtn" class="p-2 rounded-lg bg-slate-100 hover:text-red-600 transition" title="Logout"><i data-lucide="log-out" style="width:20px;height:20px"></i></button>
+            </div>
           </div>
         </header>
         <main class="max-w-6xl mx-auto px-4 py-6"><div class="grid lg:grid-cols-2 gap-6">
@@ -566,12 +562,13 @@
         </div></main>
         <div id="scannerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(12px); z-index:1000; align-items:center; justify-content:center; flex-direction:column;">
           <button id="closeScanner" style="position:absolute; top:20px; right:24px; color:white; background:rgba(0,0,0,0.5); border-radius:50%; width:44px; height:44px;"><i data-lucide="x" style="width:28px"></i></button>
-          <div class="w-full max-w-md aspect-square rounded-3xl overflow-hidden bg-white relative" id="qr-reader-wrapper"><div id="qr-reader" class="w-full h-full"></div><div id="scannerErrorDiv" style="display:none; position:absolute; inset:0; background:white; flex-direction:column; justify-content:center; align-items:center; text-align:center;"><i data-lucide="alert-circle" style="width:48px;height:48px;color:#ef4444"></i><p class="mt-2 font-medium">Camera error</p><button id="retryScanner" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg">Retry</button></div><div class="scanner-overlay"><div class="scan-line"></div></div></div>
+          <div class="w-full max-w-md aspect-square rounded-3xl overflow-hidden bg-white relative"><div id="qr-reader" class="w-full h-full"></div><div id="scannerErrorDiv" style="display:none; position:absolute; inset:0; background:white; flex-direction:column; justify-content:center; align-items:center;"><i data-lucide="alert-circle" style="width:48px;color:#ef4444"></i><p class="mt-2 font-medium">Camera error</p><button id="retryScanner" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg">Retry</button></div><div class="scanner-overlay"><div class="scan-line"></div></div></div>
           <p class="text-white mt-6 font-medium">Align QR code within the frame</p>
           <div id="lastScannedInfo" class="mt-4 p-2 rounded bg-slate-800 text-white text-xs max-w-xs hidden"><span id="lastDecodedText"></span></div>
         </div>
       `;
-      // attach refs
+      
+      // Initialize DOM elements and event listeners
       productListContainer = document.getElementById('productListContainer');
       subtotalEl = document.getElementById('subtotalVal');
       totalDiscountEl = document.getElementById('discountVal');
@@ -599,6 +596,7 @@
       document.getElementById('shareTextBtn')?.addEventListener('click', shareSMS);
       document.getElementById('closeScanner')?.addEventListener('click', stopScanner);
       document.getElementById('retryScanner')?.addEventListener('click', () => { stopScanner(); setTimeout(startScanner, 200); });
+      document.getElementById('logoutBtn')?.addEventListener('click', logout);
       customerNameInput?.addEventListener('input', (e) => customerName = e.target.value);
       customerPhoneInput?.addEventListener('input', (e) => customerPhone = e.target.value);
       paymentSelect?.addEventListener('change', (e) => paymentMode = e.target.value);
@@ -608,10 +606,68 @@
       setInterval(() => { currentTime = new Date(); const timeEl = document.getElementById('liveTime'); if(timeEl) timeEl.innerText = currentTime.toLocaleString(); }, 1000);
       updateUI();
       lucide.createIcons();
+      
+      // Load images
+      Promise.all([loadImageAsBase64('assets/mahsua.png'), loadImageAsBase64('assets/qr.png')]).then(([logo, qr]) => {
+        mahsuaLogoBase64 = logo;
+        paymentQrBase64 = qr;
+      });
     }
     
-    // Start the app and preload images
-    preloadImages();
+    // ------------------------------
+    //  LOGIN PAGE RENDER
+    // ------------------------------
+    function renderLoginPage() {
+      const root = document.getElementById('app-root');
+      root.innerHTML = `
+        <div class="min-h-screen flex items-center justify-center px-4">
+          <div class="card rounded-2xl p-8 max-w-md w-full animate-fade-in">
+            <div class="text-center mb-8">
+              <img src="assets/mahsua.png" alt="M Bill Logo" class="w-24 h-24 mx-auto mb-4 rounded-2xl object-contain shadow-lg" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%232563eb%22 stroke-width=%222%22%3E%3Crect x=%223%22 y=%223%22 width=%2218%22 height=%2218%22 rx=%222%22%3E%3C/rect%3E%3C/svg%3E'">
+              <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-blue-600">M Bill</h1>
+              <p class="text-sm text-slate-500 mt-1">Smart Billing with Discount Tracker</p>
+            </div>
+            <form id="loginForm" class="space-y-5">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
+                <div class="relative">
+                  <i data-lucide="mail" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" style="width:18px;height:18px"></i>
+                  <input type="email" id="loginEmail" placeholder="Enter your email" class="input-field w-full pl-10 pr-4 py-3 rounded-xl">
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                <div class="relative">
+                  <i data-lucide="lock" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" style="width:18px;height:18px"></i>
+                  <input type="password" id="loginPassword" placeholder="Enter your password" class="input-field w-full pl-10 pr-4 py-3 rounded-xl">
+                </div>
+              </div>
+              <button type="submit" class="btn-primary w-full py-3 rounded-xl font-semibold text-white flex items-center justify-center gap-2">
+                <i data-lucide="log-in" style="width:18px;height:18px"></i>
+                <span>Login to M Bill</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+      
+      lucide.createIcons();
+      
+      document.getElementById('loginForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        if(email && password) login(email, password);
+        else showToast("Invalid Input", "Please enter both email and password", "error");
+      });
+    }
+    
+    // Main render function
+    function renderApp() {
+      if(checkLoginStatus()) renderBillingApp();
+      else renderLoginPage();
+    }
+    
     renderApp();
   </script>
 </body>
