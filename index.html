@@ -1,13 +1,618 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>M Bill by MAHSUA</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>M Bill | Smart Billing with Discount Tracker</title>
+  <!-- Tailwind CSS CDN (v3) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- html5-qrcode -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- jsPDF + autoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
+    .bg-pattern {
+      background-image: radial-gradient(ellipse 60% 50% at 0% 0%, rgba(37, 99, 235, 0.1), transparent),
+                        radial-gradient(ellipse 60% 50% at 100% 100%, rgba(219, 39, 119, 0.08), transparent);
+    }
+    .grid-pattern {
+      background-image: linear-gradient(rgba(37, 99, 235, 0.05) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(37, 99, 235, 0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .card:hover {
+      background: rgba(255, 255, 255, 1);
+      border-color: rgba(37, 99, 235, 0.4);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    .btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); transition: all 0.2s; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(37,99,235,0.25); }
+    .btn-checkout { background: linear-gradient(135deg, #16a34a, #15803d); }
+    .btn-checkout:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(22,163,74,0.25); }
+    .btn-pink { background: linear-gradient(135deg, #db2777, #be185d); }
+    .btn-pink:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(219,39,119,0.25); }
+    .input-field { background: white; border: 1px solid rgba(148, 163, 184, 0.4); transition: all 0.2s; font-size: 0.9rem; }
+    .input-field:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+    .discount-badge { background: linear-gradient(135deg, #db2777, #be185d); font-size: 0.7rem; padding: 2px 8px; border-radius: 999px; color: white; font-weight: bold; }
+    .savings-box { background: linear-gradient(135deg, rgba(22,163,74,0.08), rgba(21,128,61,0.04)); border: 1px solid rgba(22,163,74,0.2); border-radius: 1rem; }
+    .toast-message { position: fixed; bottom: 24px; right: 24px; z-index: 1000; background: #1e293b; border-left: 4px solid #16a34a; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); backdrop-filter: blur(8px); }
+    #qr-reader { width: 100% !important; border-radius: 24px; overflow: hidden; border: none !important; }
+    #qr-reader video { border-radius: 20px; }
+    .scanner-overlay { position: absolute; inset: 0; pointer-events: none; border: 40px solid rgba(0,0,0,0.6); }
+    .scan-line { width: 100%; height: 2px; background: #2563eb; box-shadow: 0 0 12px #3b82f6; animation: scanMove 2s infinite linear; position: absolute; top: 0; }
+    @keyframes scanMove { 0% { top: 0%; } 50% { top: calc(100% - 2px); } 100% { top: 0%; } }
+    .animate-fade-in { animation: fadeIn 0.2s ease-out; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-pattern grid-pattern min-h-screen">
+  <div id="app-root" class="min-h-screen flex flex-col"></div>
 
+  <script>
+    // ------------------------------
+    //  STATE & IMAGE LOADING
+    // ------------------------------
+    let products = [];
+    let customerName = "";
+    let customerPhone = "";
+    let paymentMode = "Cash";
+    let invoiceNo = `INV-${Math.floor(1000 + Math.random() * 9000)}`;
+    let currentTime = new Date();
+    
+    let scannerActive = false;
+    let html5QrCode = null;
+    let lastScannedText = null;
+    let scannerErrorMsg = null;
+    let toastTimeout = null;
+    
+    // Store image base64 for PDF
+    let mahsuaLogoBase64 = null;
+    let paymentQrBase64 = null;
+    
+    // DOM elements
+    let productListContainer, subtotalEl, totalDiscountEl, youSaveEl, grandTotalEl;
+    let customerNameInput, customerPhoneInput, paymentSelect, invoiceInput;
+    let manualName, manualQty, manualPrice, manualAmount;
+    let quickPasteInput;
+    let scannerModal, scannerErrorDiv;
+    let itemCountSpan;
+    
+    function generateId() { return Math.random().toString(36).substr(2, 9); }
+    
+    function showToast(title, message, type = 'success') {
+      const existing = document.querySelector('.toast-message');
+      if(existing) existing.remove();
+      if(toastTimeout) clearTimeout(toastTimeout);
+      const toastDiv = document.createElement('div');
+      toastDiv.className = 'toast-message flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl pointer-events-auto bg-slate-800/90 backdrop-blur-sm border border-slate-700';
+      const iconColor = type === 'success' ? '#16a34a' : (type === 'warning' ? '#db2777' : '#ef4444');
+      const iconName = type === 'success' ? 'check-circle-2' : (type === 'warning' ? 'alert-circle' : 'alert-circle');
+      toastDiv.innerHTML = `
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:${iconColor}20">
+          <i data-lucide="${iconName}" style="width:20px;height:20px;color:${iconColor}"></i>
+        </div>
+        <div><p class="font-semibold text-white text-sm">${title}</p><p class="text-xs text-slate-300">${message}</p></div>
+      `;
+      document.body.appendChild(toastDiv);
+      lucide.createIcons({ icons: { [iconName]: true } });
+      toastTimeout = setTimeout(() => { if(toastDiv) toastDiv.remove(); }, 3000);
+    }
+    
+    function updateUI() {
+      if(!productListContainer) return;
+      if(products.length === 0) {
+        productListContainer.innerHTML = `
+          <div class="p-8 text-center">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+              <i data-lucide="shopping-cart" style="width:32px;height:32px;color:#94a3b8"></i>
+            </div>
+            <p class="text-slate-500">No products scanned yet</p>
+            <p class="text-xs text-slate-400 mt-1">Scan QR or add manually</p>
+          </div>
+        `;
+      } else {
+        let html = '';
+        products.forEach(p => {
+          const saveAmount = ((p.price * p.quantity) - p.amount).toFixed(2);
+          const discPrice = p.price * (1 - p.discountPercent / 100);
+          html += `
+            <div class="p-4 border-b border-slate-200/60 hover:bg-slate-50/50 transition-colors animate-fade-in" data-id="${p.id}">
+              <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-xs text-slate-500">#${p.serialNumber}</span>
+                      ${p.discountPercent > 0 ? `<span class="discount-badge text-[10px]">${p.discountPercent}% OFF</span>` : ''}
+                    </div>
+                    <h3 class="font-medium text-slate-800 truncate">${escapeHtml(p.name)}</h3>
+                  </div>
+                  <button class="remove-item text-xs text-pink-600 hover:text-pink-800" data-id="${p.id}">Remove</button>
+                </div>
+                <div class="grid grid-cols-3 md:grid-cols-5 gap-2 text-sm mt-2">
+                  <div><span class="text-slate-500">Price:</span><br><span class="font-medium">Rs.${p.price.toFixed(2)}</span></div>
+                  <div><span class="text-slate-500">Disc%:</span><br><span class="font-medium ${p.discountPercent > 0 ? 'text-pink-600' : ''}">${p.discountPercent}%</span></div>
+                  <div><span class="text-slate-500">Disc Price:</span><br><span class="font-medium text-green-600">Rs.${discPrice.toFixed(2)}</span></div>
+                  <div><span class="text-slate-500">Qty:</span><br>
+                    <div class="flex items-center gap-1 mt-1">
+                      <button class="qty-minus w-6 h-6 rounded bg-slate-100 hover:bg-blue-500 hover:text-white transition" data-id="${p.id}" data-delta="-1"><i data-lucide="minus" style="width:12px;height:12px"></i></button>
+                      <span class="w-8 text-center font-medium">${p.quantity}</span>
+                      <button class="qty-plus w-6 h-6 rounded bg-slate-100 hover:bg-blue-500 hover:text-white transition" data-id="${p.id}" data-delta="1"><i data-lucide="plus" style="width:12px;height:12px"></i></button>
+                    </div>
+                  </div>
+                  <div><span class="text-slate-500">Amount:</span><br><span class="font-bold text-slate-800">Rs.${p.amount.toFixed(2)}</span></div>
+                </div>
+                ${p.discountPercent > 0 ? `<div class="text-right text-xs text-green-600 mt-1">Save Rs.${saveAmount}</div>` : ''}
+              </div>
+            </div>
+          `;
+        });
+        productListContainer.innerHTML = html;
+        lucide.createIcons();
+        document.querySelectorAll('.qty-minus').forEach(btn => {
+          btn.addEventListener('click', (e) => { e.stopPropagation(); const id = btn.getAttribute('data-id'); updateQuantity(id, -1); });
+        });
+        document.querySelectorAll('.qty-plus').forEach(btn => {
+          btn.addEventListener('click', (e) => { e.stopPropagation(); const id = btn.getAttribute('data-id'); updateQuantity(id, 1); });
+        });
+        document.querySelectorAll('.remove-item').forEach(btn => {
+          btn.addEventListener('click', (e) => { const id = btn.getAttribute('data-id'); removeProduct(id); });
+        });
+      }
+      const subtotal = products.reduce((sum,p) => sum + (p.price * p.quantity), 0);
+      const grandTotal = products.reduce((sum,p) => sum + p.amount, 0);
+      const totalDiscount = subtotal - grandTotal;
+      if(subtotalEl) subtotalEl.innerText = `Rs.${subtotal.toFixed(2)}`;
+      if(totalDiscountEl) totalDiscountEl.innerText = `Rs.${totalDiscount.toFixed(2)}`;
+      if(youSaveEl) youSaveEl.innerText = `Rs.${totalDiscount.toFixed(2)}`;
+      if(grandTotalEl) grandTotalEl.innerText = `Rs.${grandTotal.toFixed(2)}`;
+      const totalItems = products.reduce((sum,p) => sum + p.quantity, 0);
+      if(itemCountSpan) itemCountSpan.innerText = totalItems;
+      lucide.createIcons();
+    }
+    
+    function updateQuantity(id, delta) {
+      const idx = products.findIndex(p => p.id === id);
+      if(idx === -1) return;
+      const p = products[idx];
+      let newQty = Math.max(1, p.quantity + delta);
+      const unitDiscountedPrice = p.price * (1 - p.discountPercent / 100);
+      const newAmount = unitDiscountedPrice * newQty;
+      products[idx] = { ...p, quantity: newQty, amount: newAmount };
+      updateUI();
+    }
+    
+    function removeProduct(id) {
+      products = products.filter(p => p.id !== id);
+      products.forEach((p, idx) => p.serialNumber = idx + 1);
+      updateUI();
+      showToast("Removed", "Item deleted", "warning");
+    }
+    
+    function addOrUpdateProduct(productData) {
+      const { name, quantity, price, amount } = productData;
+      if(!name || isNaN(price) || price <= 0) { showToast("Invalid", "Valid name & price required", "error"); return false; }
+      const qty = Math.max(1, quantity);
+      const existingIdx = products.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+      if(existingIdx !== -1) {
+        const existing = products[existingIdx];
+        const newQty = existing.quantity + qty;
+        const unitDiscountedPrice = existing.price * (1 - existing.discountPercent / 100);
+        const newAmount = unitDiscountedPrice * newQty;
+        products[existingIdx] = { ...existing, quantity: newQty, amount: newAmount };
+        showToast("Updated", `${name} quantity increased`);
+      } else {
+        const totalPrice = price * qty;
+        const discountPercent = totalPrice > 0 ? ((totalPrice - amount) / totalPrice) * 100 : 0;
+        const newProduct = {
+          id: generateId(),
+          serialNumber: products.length + 1,
+          name,
+          quantity: qty,
+          price,
+          discountPercent: Math.round(discountPercent),
+          amount
+        };
+        products.push(newProduct);
+        showToast("Added", `${name} added to cart`);
+      }
+      updateUI();
+      return true;
+    }
+    
+    function parseQRData(data) {
+      const parts = data.split(',').map(s => s.trim());
+      let name, quantity, price, amount;
+      if(parts.length >= 6) {
+        name = parts[1];
+        quantity = parseInt(parts[2]) || 1;
+        price = parseFloat(parts[3]);
+        amount = parseFloat(parts[5]);
+      } else if(parts.length === 5) {
+        name = parts[1];
+        quantity = parseInt(parts[2]) || 1;
+        price = parseFloat(parts[3]);
+        amount = parseFloat(parts[4]);
+      } else if(parts.length === 4) {
+        name = parts[0];
+        quantity = parseInt(parts[1]) || 1;
+        price = parseFloat(parts[2]);
+        amount = parseFloat(parts[3]);
+      } else if(parts.length === 3) {
+        name = parts[0];
+        quantity = parseInt(parts[1]) || 1;
+        price = parseFloat(parts[2]);
+        amount = price * quantity;
+      } else {
+        showToast("Invalid Format", "Need at least: Name, Qty, Price", "error");
+        return false;
+      }
+      if(!name || isNaN(price) || isNaN(amount)) { showToast("Parse Error", "Invalid values", "error"); return false; }
+      return { name, quantity, price, amount };
+    }
+    
+    function handleScan(decodedText) {
+      lastScannedText = decodedText;
+      if(scannerModal && scannerModal.style.display === 'flex') {
+        const span = document.getElementById('lastDecodedText');
+        if(span) span.innerText = decodedText.substring(0, 80);
+        const infoDiv = document.getElementById('lastScannedInfo');
+        if(infoDiv) infoDiv.classList.remove('hidden');
+      }
+      const parsed = parseQRData(decodedText);
+      if(parsed) addOrUpdateProduct(parsed);
+      else showToast("QR Error", "Could not parse product", "error");
+      stopScanner();
+    }
+    
+    async function startScanner() {
+      if(scannerActive) return;
+      scannerActive = true;
+      scannerErrorMsg = null;
+      if(scannerModal) scannerModal.style.display = 'flex';
+      const readerElement = document.getElementById('qr-reader');
+      if(readerElement) readerElement.innerHTML = '';
+      const errorDiv = document.getElementById('scannerErrorDiv');
+      if(errorDiv) errorDiv.style.display = 'none';
+      try {
+        html5QrCode = new Html5Qrcode("qr-reader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          (decoded) => { handleScan(decoded); },
+          (err) => { /* ignore frame errors */ }
+        );
+      } catch(err) {
+        console.error(err);
+        scannerErrorMsg = err.message || "Camera access failed";
+        if(errorDiv) errorDiv.style.display = 'flex';
+        showToast("Camera Error", scannerErrorMsg, "error");
+      }
+    }
+    
+    async function stopScanner() {
+      if(html5QrCode && html5QrCode.isScanning) {
+        try { await html5QrCode.stop(); } catch(e) {}
+      }
+      html5QrCode = null;
+      scannerActive = false;
+      if(scannerModal) scannerModal.style.display = 'none';
+    }
+    
+    function clearAllProducts() {
+      if(products.length === 0) return;
+      products = [];
+      updateUI();
+      showToast("Cleared", "All items removed", "warning");
+    }
+    
+    // ------------------------------
+    //  PDF GENERATION WITH UPDATED COLUMNS
+    // ------------------------------
+    function generatePDF(action) {
+      if(products.length === 0) { showToast("Empty", "Add products first", "error"); return; }
+      if(!mahsuaLogoBase64 || !paymentQrBase64) {
+        showToast("Images not ready", "Please wait for images to load", "warning");
+        return;
+      }
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const custName = customerName.trim() || "Customer";
+      const fileName = `${custName.replace(/\s+/g, '_')}_bill.pdf`;
+      
+      // --- Add business logo (mahsua.png) at top left ---
+      try {
+        doc.addImage(mahsuaLogoBase64, 'PNG', 10, 8, 25, 25);
+      } catch(e) { console.warn("Logo not added", e); }
+      
+      // Header text (centered)
+      doc.setFontSize(24);
+      doc.setFont("helvetica", "bold");
+      doc.text("MAHSUA DIGITAL", 105, 20, { align: "center" });
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text("MP Online | Printing | Question Paper | Photo Studio | Typing", 105, 28, { align: "center" });
+      doc.text("Mahsua 517 Mahsua Road Raipur Karchuliyan, Madhya Pradesh 486114", 105, 35, { align: "center" });
+      
+      // Contact Information Line
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      doc.text("+91 9752107808  +91 9977666219  |  mahsuadigital@gmail.com  |  www.mahsua.com", 105, 42, { align: "center" });
+      
+      // Header Divider Line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, 46, 190, 46);
+      
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+      
+      // Customer & Invoice details
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("BILL TO:", 20, 55);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Name: ${custName}`, 20, 62);
+      doc.text(`Contact: ${customerPhone || 'N/A'}`, 20, 67);
+      doc.setFont("helvetica", "bold");
+      doc.text("INVOICE DETAILS:", 140, 55);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Invoice No: ${invoiceNo}`, 140, 62);
+      doc.text(`Payment Mode: ${paymentMode}`, 140, 67);
+      doc.text(`Date: ${currentTime.toLocaleDateString()}`, 140, 72);
+      doc.text(`Time: ${currentTime.toLocaleTimeString()}`, 140, 77);
+      
+      // Product table with new column order: S.No, Product Name, Price, Disc %, Disc Price, Qty, Amount
+      const tableData = products.map(p => {
+        const discPrice = p.price * (1 - p.discountPercent / 100);
+        return [
+          p.serialNumber,
+          p.name,
+          `Rs. ${p.price.toFixed(2)}`,
+          `${p.discountPercent}%`,
+          `Rs. ${discPrice.toFixed(2)}`,
+          p.quantity,
+          `Rs. ${p.amount.toFixed(2)}`
+        ];
+      });
+      
+      doc.autoTable({
+        startY: 80,
+        head: [['S.No', 'Product Name', 'Price', 'Disc %', 'Disc Price', 'Qty', 'Amount']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59] },
+        columnStyles: { 
+          0: { halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'center' },
+          4: { halign: 'right' },
+          5: { halign: 'center' },
+          6: { halign: 'right' }
+        },
+        styles: { fontSize: 9 }
+      });
+      const finalY = doc.lastAutoTable.finalY + 10;
+      
+      // Add payment QR code on the left side of subtotal section
+      try {
+        doc.addImage(paymentQrBase64, 'PNG', 20, finalY - 5, 40, 40);
+      } catch(e) { console.warn("QR code not added", e); }
+      
+      // Subtotal, discount, grand total
+      const subtotal = products.reduce((s,p) => s + (p.price * p.quantity), 0);
+      const grandTotal = products.reduce((s,p) => s + p.amount, 0);
+      const totalDiscount = subtotal - grandTotal;
+      
+      doc.setFontSize(10);
+      doc.text(`Subtotal: Rs. ${subtotal.toFixed(2)}`, 130, finalY);
+      doc.setTextColor(220,38,38);
+      doc.text(`Total Discount: Rs. ${totalDiscount.toFixed(2)}`, 130, finalY+7);
+      doc.setTextColor(0,0,0);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(`GRAND TOTAL: Rs. ${grandTotal.toFixed(2)}`, 130, finalY+16);
+      doc.setFontSize(11);
+      doc.setTextColor(22,163,74);
+      doc.text(`You saved a total of Rs. ${totalDiscount.toFixed(2)} on this bill!`, 105, finalY+30, { align: "center" });
+      doc.setTextColor(0,0,0);
+      doc.setFontSize(9);
+      doc.text("Signature........................", 150, finalY+45);
+      
+      // Acknowledgement slip
+      const slipY = 230;
+      doc.setDrawColor(150);
+      doc.line(10, slipY, 200, slipY);
+      doc.setTextColor(100,100,100);
+      doc.setFontSize(8);
+      doc.text("CUT HERE FOR SHOPKEEPER'S REFERENCE", 105, slipY+5, { align: "center" });
+      doc.setTextColor(0,0,0);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("ACKNOWLEDGEMENT SLIP", 20, slipY+15);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Invoice No: ${invoiceNo}`, 20, slipY+25);
+      doc.text(`Payment Mode: ${paymentMode}`, 20, slipY+30);
+      doc.text(`Customer: ${custName}`, 20, slipY+35);
+      doc.text(`Contact: ${customerPhone || 'N/A'}`, 20, slipY+40);
+      doc.text(`Date: ${currentTime.toLocaleDateString()}`, 140, slipY+25);
+      doc.text(`Time: ${currentTime.toLocaleTimeString()}`, 140, slipY+30);
+      doc.text(`Items: ${products.reduce((s,p) => s + p.quantity,0)}`, 140, slipY+35);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`TOTAL PAID: Rs. ${grandTotal.toFixed(2)}`, 140, slipY+45);
+      doc.setFontSize(9);
+      doc.text("Signature........................", 20, slipY+55);
+      doc.setFontSize(8);
+      doc.setTextColor(150,150,150);
+      doc.text("Generated by M Bill", 105, 290, { align: "center" });
+      
+      if(action === 'download') {
+        doc.save(fileName);
+        showToast("Downloaded", `Saved as ${fileName}`);
+      } else {
+        const blob = doc.output('blob');
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+        if(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: 'Invoice' }).catch(() => doc.save(fileName));
+        } else {
+          doc.save(fileName);
+          showToast("Downloaded", "Sharing not supported, saved locally");
+        }
+      }
+    }
+    
+    function shareSMS() {
+      if(products.length === 0) { showToast("Empty", "No items to share", "error"); return; }
+      const name = customerName.trim() || "Walk-in";
+      let text = `🏪 M BILL 🧾\nInvoice: ${invoiceNo}\nPayment Mode: ${paymentMode}\nCustomer: ${name}\nContact: ${customerPhone || 'N/A'}\n${currentTime.toLocaleString()}\n------------------\n`;
+      products.forEach(p => {
+        const discPrice = p.price * (1 - p.discountPercent / 100);
+        text += `${p.serialNumber}. ${p.name} | MRP:Rs.${p.price.toFixed(2)} | Disc:${p.discountPercent}% | Disc Price:Rs.${discPrice.toFixed(2)} | Qty:${p.quantity} | Amount:Rs.${p.amount.toFixed(2)}\n`;
+      });
+      const subtotal = products.reduce((s,p) => s + (p.price * p.quantity),0);
+      const grandTotal = products.reduce((s,p) => s + p.amount,0);
+      const discount = subtotal - grandTotal;
+      text += `------------------\nSubtotal: Rs.${subtotal.toFixed(2)}\nTotal Discount: Rs.${discount.toFixed(2)}\n💰 GRAND TOTAL: Rs.${grandTotal.toFixed(2)}\n💸 You Saved: Rs.${discount.toFixed(2)}\nThank you!\n\nMahsua Digital\n+91 9752107808 | mahsuadigital@gmail.com | www.mahsua.com`;
+      if(navigator.share) {
+        navigator.share({ title: 'Bill Summary', text: text }).catch(() => copyToClipboard(text));
+      } else {
+        copyToClipboard(text);
+      }
+    }
+    function copyToClipboard(text) { navigator.clipboard.writeText(text); showToast("Copied", "Bill text copied", "success"); }
+    
+    function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){ if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;}); }
+    
+    function handleManualAdd() {
+      const name = manualName.value.trim();
+      const qty = parseInt(manualQty.value) || 1;
+      const price = parseFloat(manualPrice.value);
+      let amount = parseFloat(manualAmount.value);
+      if(!name || isNaN(price) || price <=0) { showToast("Invalid", "Enter name & price", "error"); return; }
+      if(isNaN(amount) || amount <= 0) amount = price * qty;
+      addOrUpdateProduct({ name, quantity: qty, price, amount });
+      manualName.value = ''; manualQty.value = '1'; manualPrice.value = ''; manualAmount.value = '';
+    }
+    
+    // ------------------------------
+    //  PRELOAD IMAGES FOR PDF
+    // ------------------------------
+    async function loadImageAsBase64(url) {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch(e) {
+        console.warn(`Failed to load ${url}`, e);
+        return null;
+      }
+    }
+    
+    async function preloadImages() {
+      const [logo, qr] = await Promise.all([
+        loadImageAsBase64('assets/mahsua.png'),
+        loadImageAsBase64('assets/qr.png')
+      ]);
+      mahsuaLogoBase64 = logo;
+      paymentQrBase64 = qr;
+      if(!logo || !qr) showToast("Image warning", "Some images not loaded, PDF may be affected", "warning");
+    }
+    
+    // ------------------------------
+    //  RENDER APP
+    // ------------------------------
+    function renderApp() {
+      const root = document.getElementById('app-root');
+      root.innerHTML = `
+        <header class="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-slate-200/60">
+          <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-3">
+              <img src="assets/mahsua.png" alt="M Bill Logo" class="w-10 h-10 rounded-xl object-contain shadow-md">
+              <div><h1 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-blue-600">M Bill</h1><p class="text-xs text-slate-500">Smart Billing with Discount Tracker</p></div>
+            </div>
+            <div class="flex gap-2 items-center"><div class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm font-mono" id="liveTime"></div><div class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm"><span class="text-slate-500">Items:</span><span id="itemCount" class="font-semibold ml-1">0</span></div><button id="clearAllBtn" class="p-2 rounded-lg bg-slate-100 hover:text-pink-600 transition" title="Clear All"><i data-lucide="trash-2" style="width:20px;height:20px"></i></button></div>
+          </div>
+        </header>
+        <main class="max-w-6xl mx-auto px-4 py-6"><div class="grid lg:grid-cols-2 gap-6">
+          <div class="space-y-4">
+            <div class="card rounded-2xl overflow-hidden"><div class="p-4 border-b"><h2 class="font-semibold text-lg flex gap-2"><i data-lucide="camera" style="width:20px"></i> QR Scanner</h2><p class="text-xs text-slate-500">Format: S.No, Product Name, Qty, Price, Discount%, Amount</p></div><div class="p-4 space-y-3"><div class="flex gap-4"><button id="startCameraBtn" class="btn-primary flex-1 py-3 rounded-xl font-semibold text-white flex justify-center gap-2"><i data-lucide="camera"></i><span>Start Camera</span></button><button id="createQrBtn" class="btn-primary flex-1 py-3 rounded-xl font-semibold text-white flex justify-center gap-2"><i data-lucide="qr-code"></i><span>Create QR</span></button></div>
+            <details class="group"><summary class="cursor-pointer text-sm text-slate-600 flex gap-2 py-2"><i data-lucide="chevron-down" style="width:16px"></i> Manual Product Entry</summary><div class="mt-3 space-y-3 p-4 rounded-xl bg-slate-50/70"><input type="text" id="manualName" placeholder="Product Name" class="input-field w-full px-4 py-2 rounded-lg"><div class="grid grid-cols-2 gap-3"><input type="number" id="manualQty" placeholder="Qty" value="1" class="input-field w-full px-4 py-2 rounded-lg"><input type="number" id="manualPrice" placeholder="Price (Rs.)" class="input-field w-full px-4 py-2 rounded-lg"></div><input type="number" id="manualAmount" placeholder="Final Amount after discount (Rs.)" class="input-field w-full px-4 py-2 rounded-lg"><button id="manualAddBtn" class="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium">➕ Add Product</button></div></details>
+            <div><p class="text-xs text-slate-500 mb-2">📱 Demo: Click to simulate QR scan</p><div class="flex flex-wrap gap-2 mb-4"><button data-demo="1, Regular Maggi 100g, 1, 50, 50%, 25" class="demoScan text-xs px-3 py-1.5 rounded-lg bg-slate-100 border">Maggi (50% off)</button><button data-demo="2, Coca Cola 500ml, 2, 40, 0%, 80" class="demoScan text-xs px-3 py-1.5 rounded-lg bg-slate-100 border">Coke (No disc)</button><button data-demo="3, Lays Classic, 1, 60, 20%, 48" class="demoScan text-xs px-3 py-1.5 rounded-lg bg-slate-100 border">Lays (20% off)</button></div><div class="flex gap-2"><input type="text" id="quickPasteInput" placeholder="1, Product, 1, 100, 10%, 90" class="input-field flex-1 px-3 py-2 rounded-lg text-xs"><button id="quickPasteBtn" class="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold">Process</button></div></div></div></div>
+          </div>
+          <div class="space-y-4">
+            <div class="card rounded-2xl p-4"><div class="space-y-3"><div class="flex gap-3"><div class="w-10 h-10 rounded-lg bg-pink-100 flex items-center justify-center"><i data-lucide="user"></i></div><input type="text" id="customerName" placeholder="Customer Name" class="input-field flex-1 px-3 py-2 rounded-lg text-sm"></div><div class="grid grid-cols-2 gap-3"><div class="flex gap-2"><div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><i data-lucide="phone" style="width:16px"></i></div><input type="tel" id="customerPhone" placeholder="Contact Number" class="input-field flex-1 px-3 py-1.5 rounded-lg text-xs"></div><div class="flex gap-2"><div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><i data-lucide="hash" style="width:16px"></i></div><input type="text" id="invoiceNo" value="${invoiceNo}" class="input-field flex-1 px-3 py-1.5 rounded-lg text-xs"></div></div><div class="flex gap-3"><div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center"><i data-lucide="credit-card"></i></div><select id="paymentMode" class="input-field flex-1 px-3 py-2 rounded-lg text-sm"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Not Paid, Pending">Not Paid, Pending</option></select></div></div></div>
+            <div class="card rounded-2xl overflow-hidden"><div class="p-4 border-b"><h2 class="font-semibold text-lg flex gap-2"><i data-lucide="shopping-cart"></i> Product List <span class="text-xs text-slate-500 ml-2">(Update Qty / Remove)</span></h2></div><div id="productListContainer" class="max-h-96 overflow-y-auto"></div></div>
+            <div class="card rounded-2xl overflow-hidden"><div class="p-4 border-b"><h2 class="font-semibold text-lg flex gap-2"><i data-lucide="check-circle-2"></i> Bill Summary</h2></div><div class="p-4 space-y-3"><div class="flex justify-between text-sm"><span>Subtotal (Before Discount)</span><span id="subtotalVal">Rs.0.00</span></div><div class="flex justify-between text-sm"><span>Total Discount on Products</span><span id="discountVal" class="text-pink-600">Rs.0.00</span></div><div class="savings-box p-3 flex justify-between items-center"><div class="flex gap-2"><i data-lucide="check-circle-2" style="color:#16a34a"></i><span class="text-green-700 font-bold text-sm">💰 YOU SAVE TOTAL</span></div><span id="youSaveVal" class="font-bold text-green-700 text-xl">Rs.0.00</span></div><div class="border-t pt-3 flex justify-between"><span class="font-semibold">GRAND TOTAL</span><span id="grandTotalVal" class="font-display font-bold text-2xl bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">Rs.0.00</span></div><div class="grid grid-cols-3 gap-2 pt-3"><button id="sharePdfBtn" class="btn-pink py-2.5 rounded-xl font-semibold text-white flex justify-center gap-1 text-[10px] uppercase"><i data-lucide="share-2"></i>1. Share PDF</button><button id="downloadPdfBtn" class="btn-checkout py-2.5 rounded-xl font-semibold text-white flex justify-center gap-1 text-[10px] uppercase"><i data-lucide="download"></i>2. Download PDF</button><button id="shareTextBtn" class="btn-primary py-2.5 rounded-xl font-semibold text-white flex justify-center gap-1 text-[10px] uppercase"><i data-lucide="message-square"></i>3. Share Text</button></div></div></div>
+          </div>
+        </div></main>
+        <div id="scannerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(12px); z-index:1000; align-items:center; justify-content:center; flex-direction:column;">
+          <button id="closeScanner" style="position:absolute; top:20px; right:24px; color:white; background:rgba(0,0,0,0.5); border-radius:50%; width:44px; height:44px;"><i data-lucide="x" style="width:28px"></i></button>
+          <div class="w-full max-w-md aspect-square rounded-3xl overflow-hidden bg-white relative" id="qr-reader-wrapper"><div id="qr-reader" class="w-full h-full"></div><div id="scannerErrorDiv" style="display:none; position:absolute; inset:0; background:white; flex-direction:column; justify-content:center; align-items:center; text-align:center;"><i data-lucide="alert-circle" style="width:48px;height:48px;color:#ef4444"></i><p class="mt-2 font-medium">Camera error</p><button id="retryScanner" class="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg">Retry</button></div><div class="scanner-overlay"><div class="scan-line"></div></div></div>
+          <p class="text-white mt-6 font-medium">Align QR code within the frame</p>
+          <div id="lastScannedInfo" class="mt-4 p-2 rounded bg-slate-800 text-white text-xs max-w-xs hidden"><span id="lastDecodedText"></span></div>
+        </div>
+      `;
+      // attach refs
+      productListContainer = document.getElementById('productListContainer');
+      subtotalEl = document.getElementById('subtotalVal');
+      totalDiscountEl = document.getElementById('discountVal');
+      youSaveEl = document.getElementById('youSaveVal');
+      grandTotalEl = document.getElementById('grandTotalVal');
+      customerNameInput = document.getElementById('customerName');
+      customerPhoneInput = document.getElementById('customerPhone');
+      paymentSelect = document.getElementById('paymentMode');
+      invoiceInput = document.getElementById('invoiceNo');
+      manualName = document.getElementById('manualName');
+      manualQty = document.getElementById('manualQty');
+      manualPrice = document.getElementById('manualPrice');
+      manualAmount = document.getElementById('manualAmount');
+      quickPasteInput = document.getElementById('quickPasteInput');
+      itemCountSpan = document.getElementById('itemCount');
+      scannerModal = document.getElementById('scannerModal');
+      
+      document.getElementById('startCameraBtn')?.addEventListener('click', startScanner);
+      document.getElementById('createQrBtn')?.addEventListener('click', () => window.open('https://apps.mahsua.com/qr-code-generator/index.html', '_blank'));
+      document.getElementById('clearAllBtn')?.addEventListener('click', clearAllProducts);
+      document.getElementById('manualAddBtn')?.addEventListener('click', handleManualAdd);
+      document.getElementById('quickPasteBtn')?.addEventListener('click', () => { if(quickPasteInput.value.trim()) handleScan(quickPasteInput.value.trim()); });
+      document.getElementById('sharePdfBtn')?.addEventListener('click', () => generatePDF('share'));
+      document.getElementById('downloadPdfBtn')?.addEventListener('click', () => generatePDF('download'));
+      document.getElementById('shareTextBtn')?.addEventListener('click', shareSMS);
+      document.getElementById('closeScanner')?.addEventListener('click', stopScanner);
+      document.getElementById('retryScanner')?.addEventListener('click', () => { stopScanner(); setTimeout(startScanner, 200); });
+      customerNameInput?.addEventListener('input', (e) => customerName = e.target.value);
+      customerPhoneInput?.addEventListener('input', (e) => customerPhone = e.target.value);
+      paymentSelect?.addEventListener('change', (e) => paymentMode = e.target.value);
+      invoiceInput?.addEventListener('input', (e) => invoiceNo = e.target.value);
+      document.querySelectorAll('.demoScan').forEach(btn => { btn.addEventListener('click', (e) => { const val = btn.getAttribute('data-demo'); if(val) handleScan(val); }); });
+      
+      setInterval(() => { currentTime = new Date(); const timeEl = document.getElementById('liveTime'); if(timeEl) timeEl.innerText = currentTime.toLocaleString(); }, 1000);
+      updateUI();
+      lucide.createIcons();
+    }
+    
+    // Start the app and preload images
+    preloadImages();
+    renderApp();
+  </script>
+</body>
+</html>
