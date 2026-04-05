@@ -74,7 +74,6 @@
     let isLoggedIn = false;
     let currentUser = null;
     
-    // Check if user is already logged in (session storage)
     function checkLoginStatus() {
       const savedLogin = sessionStorage.getItem('mBillLoggedIn');
       const savedUser = sessionStorage.getItem('mBillUser');
@@ -130,7 +129,7 @@
     }
     
     // ------------------------------
-    //  COMPLETE BILLING APP STATE
+    //  BILLING APP STATE
     // ------------------------------
     let products = [];
     let customerName = "";
@@ -365,6 +364,95 @@
       showToast("Cleared", "All items removed", "warning");
     }
     
+    // ---------- Second page (Services & Terms) ----------
+    function addServicesPage(doc) {
+      doc.addPage();
+      let y = 20;
+      doc.setFontSize(20);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.text("Our Services & Information", 105, y, { align: "center" });
+      y += 14;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, y, 190, y);
+      y += 12;
+      
+      function drawServiceBlock(header, items, startY, headerColor) {
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(headerColor.r, headerColor.g, headerColor.b);
+        doc.text(header, 105, startY, { align: "center" });
+        let yPos = startY + 8;
+        const combined = items.join(" • ");
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(60, 60, 60);
+        const splitText = doc.splitTextToSize(combined, 170);
+        doc.text(splitText, 105, yPos, { align: "center" });
+        return startY + 8 + (splitText.length * 6) + 10;
+      }
+      
+      const photoItems = [
+        "2x2 Photo",
+        "4x6 Photo",
+        "8x10 Photo",
+        "passport size Photo",
+        "Photo Editing",
+        "Photo Merging",
+        "Revival of damaged photos",
+        "Photo Framing",
+        "Fast digital delivery available"
+      ];
+      y = drawServiceBlock("Photo Studio Services", photoItems, y, { r: 37, g: 99, b: 235 });
+      
+      const printItems = [
+        "Marriage Invitation Cards",
+        "Branding Prints",
+        "Document Printing",
+        "Birthday & Event Cards",
+        "Corporate Branding",
+        "Binding & Lamination",
+        "Rush orders available"
+      ];
+      y = drawServiceBlock("Printing Services", printItems, y, { r: 219, g: 39, b: 119 });
+      
+      const techItems = [
+        "Web Application Development",
+        "Mobile Application Development",
+        "Software Maintenance & Support",
+        "Custom Software Development"
+      ];
+      y = drawServiceBlock("Mahsua Technology", techItems, y, { r: 22, g: 163, b: 74 });
+      
+      y += 8;
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.text("Terms & Conditions", 105, y, { align: "center" });
+      y += 8;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const terms = [
+        "Goods & Services once sold cannot be returned or exchanged.",
+        "Payment must be made at the time of service delivery.",
+        "The bill is valid only if send by Official contact.",
+        "For any disputes, the jurisdiction is limited to local courts.",
+        "*If Payment Not Paid or Pending must be pay under 15 days otherwise 5% per month charges will applicable"
+      ];
+      terms.forEach(term => {
+        doc.text(term, 105, y, { align: "center" });
+        y += 6;
+      });
+      y += 8;
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text("Thank you for choosing Mahsua Digital", 105, 280, { align: "center" });
+      doc.text("www.mahsua.com | +91 9752107808", 105, 286, { align: "center" });
+    }
+    
+    // ------------------------------
+    //  PDF GENERATION
+    // ------------------------------
     function generatePDF(action) {
       if(products.length === 0) { showToast("Empty", "Add products first", "error"); return; }
       const { jsPDF } = window.jspdf;
@@ -373,7 +461,6 @@
       const fileName = `${custName.replace(/\s+/g, '_')}_bill.pdf`;
       
       try { if(mahsuaLogoBase64) doc.addImage(mahsuaLogoBase64, 'PNG', 10, 8, 25, 25); } catch(e) {}
-      
       doc.setFontSize(24);
       doc.setFont("helvetica", "bold");
       doc.text("MAHSUA DIGITAL", 105, 20, { align: "center" });
@@ -381,14 +468,12 @@
       doc.setFont("helvetica", "normal");
       doc.text("MP Online | Printing | Question Paper | Photo Studio | Typing", 105, 28, { align: "center" });
       doc.text("Mahsua 517 Mahsua Road Raipur Karchuliyan, Madhya Pradesh 486114", 105, 35, { align: "center" });
-      
       doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
       doc.text("+91 9752107808  +91 9977666219  |  mahsuadigital@gmail.com  |  www.mahsua.com", 105, 42, { align: "center" });
       doc.setDrawColor(200, 200, 200);
       doc.line(20, 46, 190, 46);
       doc.setTextColor(0, 0, 0);
-      
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text("BILL TO:", 20, 55);
@@ -407,7 +492,6 @@
         const discPrice = p.price * (1 - p.discountPercent / 100);
         return [p.serialNumber, p.name, `Rs. ${p.price.toFixed(2)}`, `${p.discountPercent}%`, `Rs. ${discPrice.toFixed(2)}`, p.quantity, `Rs. ${p.amount.toFixed(2)}`];
       });
-      
       doc.autoTable({
         startY: 80,
         head: [['S.No', 'Product Name', 'Price', 'Disc %', 'Disc Price', 'Qty', 'Amount']],
@@ -417,13 +501,10 @@
         styles: { fontSize: 9 }
       });
       const finalY = doc.lastAutoTable.finalY + 10;
-      
       try { if(paymentQrBase64) doc.addImage(paymentQrBase64, 'PNG', 20, finalY - 5, 40, 40); } catch(e) {}
-      
       const subtotal = products.reduce((s,p) => s + (p.price * p.quantity), 0);
       const grandTotal = products.reduce((s,p) => s + p.amount, 0);
       const totalDiscount = subtotal - grandTotal;
-      
       doc.setFontSize(10);
       doc.text(`Subtotal: Rs. ${subtotal.toFixed(2)}`, 130, finalY);
       doc.setTextColor(220,38,38);
@@ -438,7 +519,6 @@
       doc.setTextColor(0,0,0);
       doc.setFontSize(9);
       doc.text("Signature........................", 150, finalY+45);
-      
       const slipY = 230;
       doc.setDrawColor(150);
       doc.line(10, slipY, 200, slipY);
@@ -467,6 +547,10 @@
       doc.setTextColor(150,150,150);
       doc.text("Generated by M Bill", 105, 290, { align: "center" });
       
+      if (action === 'share') {
+        addServicesPage(doc);
+      }
+      
       if(action === 'download') {
         doc.save(fileName);
         showToast("Downloaded", `Saved as ${fileName}`);
@@ -482,6 +566,43 @@
       }
     }
     
+    // ------------------------------
+    //  SHARE TEXT - FIXED (robust copy)
+    // ------------------------------
+    async function copyToClipboard(text) {
+      // Modern async clipboard API
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast("Copied", "Bill text copied to clipboard", "success");
+          return;
+        } catch (err) {
+          console.warn("Clipboard API failed, using fallback.", err);
+        }
+      }
+      // Fallback: create a temporary textarea
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-9999px';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      let success = false;
+      try {
+        success = document.execCommand('copy');
+      } catch (err) {
+        console.error("execCommand copy failed", err);
+      }
+      document.body.removeChild(textarea);
+      if (success) {
+        showToast("Copied", "Bill text copied to clipboard", "success");
+      } else {
+        showToast("Copy Failed", "Please copy manually. Press Ctrl+C (Cmd+C) after selecting the text.", "error");
+      }
+    }
+    
     function shareSMS() {
       if(products.length === 0) { showToast("Empty", "No items to share", "error"); return; }
       const name = customerName.trim() || "Walk-in";
@@ -494,13 +615,18 @@
       const grandTotal = products.reduce((s,p) => s + p.amount,0);
       const discount = subtotal - grandTotal;
       text += `------------------\nSubtotal: Rs.${subtotal.toFixed(2)}\nTotal Discount: Rs.${discount.toFixed(2)}\n💰 GRAND TOTAL: Rs.${grandTotal.toFixed(2)}\n💸 You Saved: Rs.${discount.toFixed(2)}\nThank you!\n\nMahsua Digital\n+91 9752107808 | mahsuadigital@gmail.com | www.mahsua.com`;
-      if(navigator.share) {
-        navigator.share({ title: 'Bill Summary', text: text }).catch(() => copyToClipboard(text));
+      
+      // Try native share first (if available), else copy
+      if (navigator.share) {
+        navigator.share({ title: 'Bill Summary', text: text })
+          .catch(err => {
+            console.warn("Native share failed, falling back to copy", err);
+            copyToClipboard(text);
+          });
       } else {
         copyToClipboard(text);
       }
     }
-    function copyToClipboard(text) { navigator.clipboard.writeText(text); showToast("Copied", "Bill text copied", "success"); }
     
     function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){ if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;}); }
     
@@ -568,7 +694,6 @@
         </div>
       `;
       
-      // Initialize DOM elements and event listeners
       productListContainer = document.getElementById('productListContainer');
       subtotalEl = document.getElementById('subtotalVal');
       totalDiscountEl = document.getElementById('discountVal');
@@ -607,7 +732,6 @@
       updateUI();
       lucide.createIcons();
       
-      // Load images
       Promise.all([loadImageAsBase64('assets/mahsua.png'), loadImageAsBase64('assets/qr.png')]).then(([logo, qr]) => {
         mahsuaLogoBase64 = logo;
         paymentQrBase64 = qr;
@@ -615,7 +739,7 @@
     }
     
     // ------------------------------
-    //  LOGIN PAGE RENDER
+    //  LOGIN PAGE
     // ------------------------------
     function renderLoginPage() {
       const root = document.getElementById('app-root');
@@ -650,9 +774,7 @@
           </div>
         </div>
       `;
-      
       lucide.createIcons();
-      
       document.getElementById('loginForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const email = document.getElementById('loginEmail').value.trim();
@@ -662,7 +784,6 @@
       });
     }
     
-    // Main render function
     function renderApp() {
       if(checkLoginStatus()) renderBillingApp();
       else renderLoginPage();
